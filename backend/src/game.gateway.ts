@@ -48,6 +48,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ball = { x: 400, y: 300, dx: 4, dy: 4, size: 10, color: 'white' };
   lastHitter: Side | null = null;
 
+  acceleration = 1.08;
+
   duplicateBalls: Array<{
     x: number;
     y: number;
@@ -147,6 +149,54 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     bottom: null,
   };
   desconcentrarCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  invertControlsCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  ghostPaddleCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  magnetCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  magnetActive: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  explosiveBallCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  shrinkCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  zigzagCooldown: Record<Side, boolean> = {
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  };
+  zigzagActive: Record<Side, boolean> = {
     left: false,
     right: false,
     top: false,
@@ -284,6 +334,178 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!p || !p.ability) return;
     const s = p.side;
 
+    if (p.ability === 'zigzagBall' && !this.zigzagCooldown?.[s]) {
+      this.zigzagActive = this.zigzagActive || {
+        left: false,
+        right: false,
+        top: false,
+        bottom: false,
+      };
+      this.zigzagActive[s] = true;
+      this.server.emit('abilityEffect', { side: s, type: 'zigzagBall' });
+      setTimeout(() => {
+        this.zigzagActive[s] = false;
+        this.server.emit('abilityEffect', { side: s, type: 'zigzagBallOff' });
+      }, 3000);
+      this.zigzagCooldown[s] = true;
+      setTimeout(() => (this.zigzagCooldown[s] = false), 8000);
+      return;
+    }
+
+    if (p.ability === 'shrinkOpponent') {
+      const adversaries = Object.entries(this.players).filter(
+        ([id, pl]) => pl.side !== s,
+      );
+      if (adversaries.length > 0) {
+        const [targetId, targetPlayer] =
+          adversaries[Math.floor(Math.random() * adversaries.length)];
+        const targetSide = targetPlayer.side;
+        // Encolhe a raquete no estado global
+        this.padSize[targetSide] /= 2;
+        this.server.emit('abilityEffect', {
+          side: targetSide,
+          type: 'shrinkPaddle',
+        });
+        this.emitState(); // Atualiza o estado para todos
+        setTimeout(() => {
+          this.padSize[targetSide] *= 2;
+          this.emitState();
+        }, 4000);
+      }
+      this.shrinkCooldown[s] = true;
+      setTimeout(() => (this.shrinkCooldown[s] = false), 8000);
+      return;
+    }
+    if (p.ability === 'explosiveBall' && !this.explosiveBallCooldown?.[s]) {
+      // Calcula a distância da bola para cada paddle adversária
+      const mySide = p.side;
+      const ballX = this.ball.x;
+      const ballY = this.ball.y;
+      const sidesToPush: Side[] = ['left', 'right', 'top', 'bottom'].filter(
+        (side) => side !== mySide,
+      ) as Side[];
+
+      // Calcula a distância do centro da paddle para a bola
+      const paddleCenters: Record<Side, { x: number; y: number }> = {
+        left: { x: 20, y: this.positions.left + this.padSize.left / 2 },
+        right: { x: 780, y: this.positions.right + this.padSize.right / 2 },
+        top: { x: this.positions.top + this.padSize.top / 2, y: 20 },
+        bottom: { x: this.positions.bottom + this.padSize.bottom / 2, y: 580 },
+      };
+
+      let minDist = Infinity;
+      let closestSide: Side | null = null;
+      for (const side of sidesToPush) {
+        const center = paddleCenters[side];
+        const dist = Math.sqrt(
+          (center.x - ballX) ** 2 + (center.y - ballY) ** 2,
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          closestSide = side;
+        }
+      }
+
+      if (closestSide) {
+        // Calcula direção para empurrar: se a bola está acima do centro, empurra para cima, etc.
+        const center = paddleCenters[closestSide];
+        const pushAmount = 60;
+        if (closestSide === 'left' || closestSide === 'right') {
+          // Paddle vertical: move para cima ou para baixo
+          if (ballY < center.y) {
+            // Bola acima: empurra paddle para baixo
+            this.positions[closestSide] = Math.min(
+              600 - this.padSize[closestSide],
+              this.positions[closestSide] + pushAmount,
+            );
+          } else {
+            // Bola abaixo: empurra paddle para cima
+            this.positions[closestSide] = Math.max(
+              0,
+              this.positions[closestSide] - pushAmount,
+            );
+          }
+        } else {
+          // Paddle horizontal: move para esquerda ou direita
+          if (ballX < center.x) {
+            // Bola à esquerda: empurra paddle para direita
+            this.positions[closestSide] = Math.min(
+              800 - this.padSize[closestSide],
+              this.positions[closestSide] + pushAmount,
+            );
+          } else {
+            // Bola à direita: empurra paddle para esquerda
+            this.positions[closestSide] = Math.max(
+              0,
+              this.positions[closestSide] - pushAmount,
+            );
+          }
+        }
+      }
+
+      this.emitState();
+      this.server.emit('abilityEffect', {
+        side: mySide,
+        type: 'explosiveBall',
+      });
+      this.explosiveBallCooldown[s] = true;
+      setTimeout(() => (this.explosiveBallCooldown[s] = false), 8000);
+      return;
+    }
+
+    if (p.ability === 'magnet' && !this.magnetCooldown?.[s]) {
+      this.magnetActive = this.magnetActive || {
+        left: false,
+        right: false,
+        top: false,
+        bottom: false,
+      };
+      this.magnetActive[s] = true;
+      this.server.emit('abilityEffect', { side: s, type: 'magnet' });
+      setTimeout(() => {
+        this.magnetActive[s] = false;
+        this.server.emit('abilityEffect', { side: s, type: 'magnetOff' });
+      }, 3000);
+      this.magnetCooldown[s] = true;
+      setTimeout(() => (this.magnetCooldown[s] = false), 8000);
+      return;
+    }
+
+    if (p.ability === 'ghostPaddle' && !this.ghostPaddleCooldown?.[s]) {
+      const adversaries = Object.entries(this.players).filter(
+        ([id, pl]) => pl.side !== s,
+      );
+      if (adversaries.length > 0) {
+        const [targetId, targetPlayer] =
+          adversaries[Math.floor(Math.random() * adversaries.length)];
+        this.server.to(targetId).emit('abilityEffect', {
+          side: targetPlayer.side,
+          type: 'ghostPaddle',
+        });
+      }
+      this.ghostPaddleCooldown[s] = true;
+      setTimeout(() => (this.ghostPaddleCooldown[s] = false), 8000);
+      return;
+    }
+
+    // Inverter controles
+    if (p.ability === 'invertControls' && !this.invertControlsCooldown?.[s]) {
+      // Escolha um adversário aleatório
+      const adversaries = Object.entries(this.players).filter(
+        ([id, pl]) => pl.side !== s,
+      );
+      if (adversaries.length > 0) {
+        const [targetId, targetPlayer] =
+          adversaries[Math.floor(Math.random() * adversaries.length)];
+        this.server
+          .to(targetId)
+          .emit('abilityEffect', { side: s, type: 'invertControls' });
+      }
+      this.invertControlsCooldown[s] = true;
+      setTimeout(() => (this.invertControlsCooldown[s] = false), 8000);
+      return;
+    }
+
     if (p.ability === 'desconcentrar') {
       // Envie o efeito para todos, menos quem ativou
       Object.entries(this.players).forEach(([id, player]) => {
@@ -412,18 +634,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Grow
     if (p.ability === 'grow' && !this.growActive[s] && !this.growCooldown[s]) {
       this.growActive[s] = true;
-      this.padSize[s] *= 1.5;
+      this.padSize[s] *= 2.5;
       this.server.emit('abilityEffect', { side: s, type: 'grow' });
       setTimeout(() => {
         this.growActive[s] = false;
-        this.padSize[s] /= 1.5;
+        this.padSize[s] /= 2.5;
         this.growCooldown[s] = true;
         setTimeout(() => (this.growCooldown[s] = false), 5000);
       }, 10000);
       return;
     }
 
-    // Grudar (Godmode)
+    // Grudar
     if (
       p.ability === 'stick' &&
       !this.stickActive[s] &&
@@ -439,30 +661,47 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Parar o tempo (paddles continuam mexendo)
     if (p.ability === 'stop' && !this.isPaused && !this.timeStopCooldown[s]) {
       this.isPaused = true;
-      this.stopperSide = s; // <-- Adicione esta linha
+      this.stopperSide = s;
       this.timeStopCooldown[s] = true;
       this.server.emit('abilityEffect', { side: s, type: 'timeStopOn' });
       setTimeout(() => {
         this.isPaused = false;
-        this.stopperSide = null; // <-- E limpe aqui
+        this.stopperSide = null;
         this.server.emit('abilityEffect', { side: s, type: 'timeStopOff' });
       }, 2000);
       setTimeout(() => (this.timeStopCooldown[s] = false), 10000);
       return;
     }
 
-    // Duplicar bola
+    // Multiplicar bola (novo poder)
     if (p.ability === 'duplicateBall' && !this.duplicateBallCooldown?.[s]) {
-      const newBall = {
-        ...this.ball,
-        dx: -this.ball.dx,
-        dy: -this.ball.dy,
-        lastHit: this.lastHitter,
-        isStuck: false,
-      };
-      this.server.emit('abilityEffect', { side: s, type: 'duplicateBall' });
+      // Sorteia quantas bolas criar (de 1 a 5)
+      const multiplier = Math.floor(Math.random() * 5) + 1;
+      this.server.emit('abilityEffect', {
+        side: s,
+        type: 'duplicateBall',
+        multiplier,
+      });
+
       if (!this.duplicateBalls) this.duplicateBalls = [];
-      this.duplicateBalls.push(newBall);
+      for (let i = 0; i < multiplier; i++) {
+        // Cada bola vai em uma direção diferente
+        const angle = (2 * Math.PI * i) / multiplier;
+        const speed =
+          Math.sqrt(
+            this.ball.dx * this.ball.dx + this.ball.dy * this.ball.dy,
+          ) || 6;
+        this.duplicateBalls.push({
+          x: this.ball.x,
+          y: this.ball.y,
+          dx: Math.cos(angle) * speed,
+          dy: Math.sin(angle) * speed,
+          size: this.ball.size,
+          color: this.ball.color,
+          lastHit: this.lastHitter,
+          isStuck: false,
+        });
+      }
 
       // Defina o cooldown
       if (!this.duplicateBallCooldown)
@@ -473,7 +712,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           bottom: false,
         };
       this.duplicateBallCooldown[s] = true;
-      setTimeout(() => (this.duplicateBallCooldown[s] = false), 8000); // 8 segundos de cooldown
+      setTimeout(() => (this.duplicateBallCooldown[s] = false), 8000);
 
       // Envie o estado completo!
       this.emitState();
@@ -582,6 +821,41 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!this.isPaused && this.ballFrozenUntil === null) {
         this.ball.x += this.ball.dx;
         this.ball.y += this.ball.dy;
+
+        const maxSpeed = 16;
+        let speed = Math.sqrt(
+          this.ball.dx * this.ball.dx + this.ball.dy * this.ball.dy,
+        );
+
+        if (speed > maxSpeed) {
+          this.ball.dx *= maxSpeed / speed;
+          this.ball.dy *= maxSpeed / speed;
+        }
+
+        if (this.duplicateBalls && this.duplicateBalls.length > 0) {
+          for (const b of this.duplicateBalls) {
+            let bSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
+            if (bSpeed > maxSpeed) {
+              b.dx *= maxSpeed / bSpeed;
+              b.dy *= maxSpeed / bSpeed;
+            }
+          }
+        }
+
+        if (
+          this.zigzagActive &&
+          Object.values(this.zigzagActive).some(Boolean)
+        ) {
+          this.ball.dx += (Math.random() - 0.5) * 4;
+          this.ball.dy += (Math.random() - 0.5) * 4;
+          if (this.duplicateBalls && this.duplicateBalls.length > 0) {
+            for (const b of this.duplicateBalls) {
+              b.dx += (Math.random() - 0.5) * 4;
+              b.dy += (Math.random() - 0.5) * 4;
+            }
+          }
+        }
+
         // Atualiza bolas duplicadas
         if (this.duplicateBalls && this.duplicateBalls.length > 0) {
           for (const b of this.duplicateBalls) {
@@ -601,6 +875,34 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const pos = this.positions[s];
         const sz = this.padSize[s];
         let hit = false;
+
+        if (this.magnetActive && this.magnetActive[s]) {
+          // Centro da raquete
+          let paddleCenterX =
+            s === 'left' || s === 'right'
+              ? s === 'left'
+                ? 20
+                : 780
+              : this.positions[s] + this.padSize[s] / 2;
+          let paddleCenterY =
+            s === 'top' || s === 'bottom'
+              ? s === 'top'
+                ? 20
+                : 580
+              : this.positions[s] + this.padSize[s] / 2;
+
+          // Calcula distância até o centro da raquete
+          const dx = paddleCenterX - this.ball.x;
+          const dy = paddleCenterY - this.ball.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          // Só atrai se estiver a menos de 180px da raquete
+          if (dist < 200) {
+            // Força menor (ajuste 0.01 para mais/menos força)
+            this.ball.dx += dx * 0.02;
+            this.ball.dy += dy * 0.02;
+          }
+        }
 
         // Verifica colisão com a paddle
         if (s === 'left') {
@@ -744,8 +1046,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
 
         // Pequeno fator aleatório para imprevisibilidade extra
-        this.ball.dx += (Math.random() - 0.5) * 0.5;
-        this.ball.dy += (Math.random() - 0.5) * 0.5;
+        this.ball.dx += Math.random() - 0.5;
+        this.ball.dy += Math.random() - 0.5; // valor maior = acelera mais rápido (ex: 1.08)
+
+        if (
+          !(this.zigzagActive && Object.values(this.zigzagActive).some(Boolean))
+        ) {
+          this.ball.dx *= this.acceleration;
+          this.ball.dy *= this.acceleration;
+        }
 
         if (!jaEmitiuBallHitEsteFrame) {
           this.server.emit('ballHit');
@@ -840,6 +1149,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             }
             b.dx += (Math.random() - 0.5) * 0.5;
             b.dy += (Math.random() - 0.5) * 0.5;
+
+            if (
+              !(
+                this.zigzagActive &&
+                Object.values(this.zigzagActive).some(Boolean)
+              )
+            ) {
+              this.ball.dx *= this.acceleration;
+              this.ball.dy *= this.acceleration;
+            }
           }
         });
       }
@@ -966,6 +1285,84 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             background: this.players[pid].background,
           });
         }
+        this.stickCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.duplicateBallCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.explosiveBallCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.shrinkCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.magnetCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.zigzagCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.neonCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.growCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.timeStopCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.telekinesisCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.desconcentrarCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.invertControlsCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
+        this.ghostPaddleCooldown = {
+          left: false,
+          right: false,
+          top: false,
+          bottom: false,
+        };
         this.server.emit('ballReset');
         this.resetBall();
         this.duplicateBalls = [];
@@ -982,10 +1379,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         ).sort((a, b) => b[1] - a[1])[0][0];
         const winnerId = Object.keys(this.players).find(
           (id) => this.players[id].side === winnerSide,
-        )!;
+        );
+
+        // Se o vencedor saiu, winnerId será undefined
+        let winnerName = '--';
+        if (winnerId && this.players[winnerId]) {
+          winnerName = this.players[winnerId].name;
+        }
+
         this.server.emit('gameOver', {
-          winner: this.players[winnerId].name,
+          winner: winnerName,
           score: this.score,
+        });
+
+        // Só manda defeat para quem ainda está conectado
+        Object.entries(this.players).forEach(([id, player]) => {
+          if (player.side !== winnerSide) {
+            this.server.to(id).emit('defeat');
+          }
         });
       }
 
