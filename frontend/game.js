@@ -17,6 +17,7 @@ const ballTrail = []
 const duplicateBallTrails = []
 const ballParticles = []
 const MAX_TRAIL_LENGTH = 30
+const shrinkBlink = { left: 0, right: 0, top: 0, bottom: 0 }
 let currentBackground = { type: 'color', value: '#0a0a0a' }
 let confetti = []
 let flashWin = false,
@@ -59,6 +60,24 @@ window.addEventListener('DOMContentLoaded', () => {
   const gradientColorDiv = document.getElementById('gradientColorDiv')
   const paddleGradientSecondColor = document.getElementById('paddleGradientSecondColor')
   const gradientPreview = document.getElementById('gradientPreview')
+
+  const savedName = localStorage.getItem('pong_name') || ''
+  const savedAbility = localStorage.getItem('pong_ability') || ''
+  const savedColor = localStorage.getItem('pong_color') || '#ff0000'
+  const savedGradientType = localStorage.getItem('pong_gradientType') || 'none'
+  const savedGradientColor2 = localStorage.getItem('pong_gradientColor2') || '#ffffff'
+  const savedBgType = localStorage.getItem('pong_bgType') || 'color'
+  const savedBgColor = localStorage.getItem('pong_bgColor') || '#000000'
+  const savedBgImage = localStorage.getItem('pong_bgImage') || ''
+
+  document.getElementById('nameInput').value = savedName
+  document.getElementById('abilitySelect').value = savedAbility
+  document.getElementById('startColorPicker').value = savedColor
+  document.getElementById('paddleGradient').value = savedGradientType
+  document.getElementById('paddleGradientSecondColor').value = savedGradientColor2
+  document.getElementById('bgSelect').value = savedBgType
+  document.getElementById('bgColorPicker').value = savedBgColor
+  document.getElementById('bgImageInput').value = savedBgImage
 
   // Mostrar/esconder inputs de cor ou imagem
   bgSelect.addEventListener('change', () => {
@@ -148,19 +167,29 @@ window.addEventListener('DOMContentLoaded', () => {
     })
 
     joined = true
+
+    localStorage.setItem('pong_name', name)
+    localStorage.setItem('pong_ability', ability)
+    localStorage.setItem('pong_color', color)
+    localStorage.setItem('pong_gradientType', gradientType)
+    localStorage.setItem('pong_gradientColor2', gradientColor2)
+    localStorage.setItem('pong_bgType', bgSelect.value)
+    localStorage.setItem('pong_bgColor', bgColor)
+    localStorage.setItem('pong_bgImage', bgImage)
+
     document.getElementById('startModal').style.display = 'none'
   })
 })
 
 socket.on('ballHit', () => {
   hitSound.pause()
-  hitSound.currentTime = 0.6
+  hitSound.currentTime = 0
   hitSound.playbackRate = 2.0
   hitSound.play()
   setTimeout(() => {
     hitSound.pause()
     hitSound.currentTime = 0
-  }, 80)
+  }, 2000)
 })
 
 resetButton.addEventListener('click', () => {
@@ -364,8 +393,85 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
       telecineseSound.play()
       break
 
+    case 'zigzagBall':
+      if (!window.zigzagActive) window.zigzagActive = {}
+      window.zigzagActive[s] = true
+      setTimeout(() => (window.zigzagActive[s] = false), 3000)
+      break
+
+    case 'invertControls':
+      window.invertControlsActive = true
+      // Efeito: flash vermelho rápido
+      const invertFlash = document.createElement('div')
+      invertFlash.style.position = 'fixed'
+      invertFlash.style.left = 0
+      invertFlash.style.top = 0
+      invertFlash.style.width = '100vw'
+      invertFlash.style.height = '100vh'
+      invertFlash.style.background = 'rgba(255,0,0,0.15)'
+      invertFlash.style.zIndex = 9999
+      invertFlash.style.pointerEvents = 'none'
+      document.body.appendChild(invertFlash)
+      setTimeout(() => document.body.removeChild(invertFlash), 200)
+      setTimeout(() => (window.invertControlsActive = false), 4000)
+      break
+
+    case 'ghostPaddle':
+      if (!window.ghostPaddle) window.ghostPaddle = {}
+      window.ghostPaddle[s] = true
+      setTimeout(() => (window.ghostPaddle[s] = false), 4000)
+      break
+
+    case 'explosiveBall':
+      flashWin = true
+      flashCount = 0
+      // Efeito: onda de choque
+      let waveFrame = 0
+      const bx = gameState.ball.x
+      const by = gameState.ball.y
+      function drawWave() {
+        if (waveFrame > 20) return
+        ctx.save()
+        ctx.globalAlpha = 0.25 * (1 - waveFrame / 20)
+        ctx.strokeStyle = '#ff0'
+        ctx.lineWidth = 8 + 8 * (1 - waveFrame / 20)
+        ctx.beginPath()
+        ctx.arc(bx, by, 30 + waveFrame * 8, 0, 2 * Math.PI)
+        ctx.stroke()
+        ctx.restore()
+        waveFrame++
+        requestAnimationFrame(drawWave)
+      }
+      drawWave()
+      // Efeito: partículas de explosão maiores
+      for (let i = 0; i < 50; i++) {
+        ballParticles.push({
+          x: bx,
+          y: by,
+          alpha: 1,
+          radius: 8 + Math.random() * 10,
+          color: `hsl(${Math.random() * 60 + 20}, 100%, 60%)`,
+          dx: Math.cos((i / 50) * 2 * Math.PI) * (4 + Math.random() * 3),
+          dy: Math.sin((i / 50) * 2 * Math.PI) * (4 + Math.random() * 3),
+        })
+      }
+      break
+
+    case 'shrinkPaddle':
+      shrinkBlink[s] = 60
+      break
+
     case 'telekinesisOff':
       telekinesisEffects[s] = null
+      break
+
+    case 'magnet':
+      if (!window.magnetActive) window.magnetActive = {}
+      window.magnetActive[s] = true
+      setTimeout(() => (window.magnetActive[s] = false), 3000)
+      break
+    case 'magnetOff':
+      if (window.magnetActive) window.magnetActive[s] = false
       break
 
     case 'force':
@@ -504,6 +610,22 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
       flash.style.pointerEvents = 'none'
       document.body.appendChild(flash)
       setTimeout(() => document.body.removeChild(flash), 150)
+
+      // Mostra quantas bolas foram criadas (opcional)
+      if (typeof multiplier !== 'undefined') {
+        const msg = document.createElement('div')
+        msg.textContent = `Multiplicou em ${multiplier} bolas!`
+        msg.style.position = 'fixed'
+        msg.style.top = '50%'
+        msg.style.left = '50%'
+        msg.style.transform = 'translate(-50%, -50%)'
+        msg.style.fontSize = '2em'
+        msg.style.color = '#fff'
+        msg.style.textShadow = '2px 2px 8px #000'
+        msg.style.zIndex = 10000
+        document.body.appendChild(msg)
+        setTimeout(() => document.body.removeChild(msg), 1000)
+      }
       break
 
     case 'desconcentrar':
@@ -520,11 +642,16 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
 socket.on('gameOver', ({ winner, score }) => {
   gameOver = true
   currentBackground = { type: 'color', value: '#0a0a0a' }
-  winnerMessage.textContent = `Fim de jogo! Vencedor: ${winner}`
+  winnerMessage.textContent =
+    winner && winner !== '--' ? `Fim de jogo! Vencedor: ${winner}` : 'Fim de jogo! Nenhum vencedor (jogador saiu)'
   const p = Object.values(gameState.players).find((p) => p.name === winner)
   if (p) {
     wins[p.side]++ // incrementa o contador
     updateScoreTable() // redesenha a tabela já com o +1
+    if (side === p.side) {
+      winSound.currentTime = 0
+      winSound.play()
+    }
   }
   confetti = []
   for (let i = 0; i < 100; i++) {
@@ -537,16 +664,7 @@ socket.on('gameOver', ({ winner, score }) => {
       size: Math.random() * 6 + 4,
     })
   }
-  Object.entries(this.players).forEach(([id, player]) => {
-    if (player.side !== winnerSide) {
-      this.server.to(id).emit('defeat')
-    }
-    winSound.currentTime = 0
-    winSound.play()
-    updateScoreTable()
-  })
 })
-
 socket.on('defeat', () => {
   derrotaSound.currentTime = 0
   derrotaSound.play()
@@ -588,6 +706,7 @@ document.addEventListener('keydown', (e) => {
 
   const key = e.key.toLowerCase()
   let dir = null
+
   // paddles verticais (left/right) usam W/S ou ↑/↓
   if (side === 'left' || side === 'right') {
     if (key === 'w' || key === 'arrowup') dir = 'up'
@@ -599,8 +718,19 @@ document.addEventListener('keydown', (e) => {
     if (key === 'd' || key === 'arrowright') dir = 'right'
   }
 
-  if (dir && !moveInterval) {
+  if (window.invertControlsActive) {
+    if (dir === 'up') dir = 'down'
+    else if (dir === 'down') dir = 'up'
+    else if (dir === 'left') dir = 'right'
+    else if (dir === 'right') dir = 'left'
+  }
+
+  // Adicione este bloco para garantir que o movimento seja iniciado corretamente
+  if ((side === 'top' || side === 'bottom') && ['a', 'd', 'arrowleft', 'arrowright'].includes(key)) {
     e.preventDefault()
+  }
+
+  if (dir && !moveInterval) {
     moveDirection = dir
     moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 60)
   }
@@ -629,6 +759,8 @@ document.addEventListener('keyup', (e) => {
 // Drawing
 const sides = ['left', 'right', 'top', 'bottom']
 function draw() {
+  const zigzagActive = window.zigzagActive && Object.values(window.zigzagActive).some(Boolean)
+
   if (flashWin && flashCount < 20) {
     ctx.fillStyle = flashCount % 2 === 0 ? '#fff' : '#000'
     ctx.fillRect(0, 0, 800, 600)
@@ -754,15 +886,79 @@ function draw() {
       ctx.fillStyle = p.color
     }
 
+    if (window.magnetActive && window.magnetActive[s]) {
+      // Efeito: círculos azuis pulsando ao redor da raquete
+      ctx.save()
+      ctx.globalAlpha = 0.3 + 0.2 * Math.sin(performance.now() / 200)
+      ctx.strokeStyle = '#00f6'
+      ctx.lineWidth = 6
+      const pos = gameState.positions[s],
+        sz = gameState.padSize[s]
+      let cx, cy
+      if (s === 'left') {
+        cx = 15
+        cy = pos + sz / 2
+      }
+      if (s === 'right') {
+        cx = 785
+        cy = pos + sz / 2
+      }
+      if (s === 'top') {
+        cx = pos + sz / 2
+        cy = 15
+      }
+      if (s === 'bottom') {
+        cx = pos + sz / 2
+        cy = 585
+      }
+      for (let r = 30; r <= 60; r += 15) {
+        ctx.beginPath()
+        ctx.arc(cx, cy, r + 5 * Math.sin(performance.now() / 100 + r), 0, 2 * Math.PI)
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
+
     // Desenha a raquete conforme o side
-    if (s === 'left') ctx.fillRect(10, pos, 10, sz)
-    if (s === 'right') ctx.fillRect(780, pos, 10, sz)
-    if (s === 'top') ctx.fillRect(pos, 10, sz, 10)
-    if (s === 'bottom') ctx.fillRect(pos, 580, sz, 10)
+
+    if (window.ghostPaddle && window.ghostPaddle[s]) {
+      // Efeito: contorno piscante
+      ctx.save()
+      ctx.strokeStyle = 'rgba(200,200,255,' + (0.5 + 0.5 * Math.sin(performance.now() / 100)) + ')'
+      ctx.lineWidth = 4
+      if (s === 'left') ctx.strokeRect(10, pos, 10, sz)
+      if (s === 'right') ctx.strokeRect(780, pos, 10, sz)
+      if (s === 'top') ctx.strokeRect(pos, 10, sz, 10)
+      if (s === 'bottom') ctx.strokeRect(pos, 580, sz, 10)
+      ctx.restore()
+    } else {
+      // Desenho normal da raquete
+      ctx.fillRect(
+        s === 'left' ? 10 : s === 'right' ? 780 : gameState.positions[s],
+        s === 'top' ? 10 : s === 'bottom' ? 580 : gameState.positions[s],
+        s === 'left' || s === 'right' ? 10 : gameState.padSize[s],
+        s === 'top' || s === 'bottom' ? 10 : gameState.padSize[s],
+      )
+    }
 
     // Desenha efeitos adicionais (neon, stick, etc.)
     if (neonTimers[s]) neonTimers[s]()
     if (stickTimers[s]) stickTimers[s]()
+
+    if (shrinkBlink[s] > 0) {
+      ctx.save()
+      ctx.globalAlpha = 0.7
+      ctx.strokeStyle = 'yellow'
+      ctx.lineWidth = 6
+      const pos = gameState.positions[s],
+        sz = gameState.padSize[s]
+      if (s === 'left') ctx.strokeRect(10, pos, 10, sz)
+      if (s === 'right') ctx.strokeRect(780, pos, 10, sz)
+      if (s === 'top') ctx.strokeRect(pos, 10, sz, 10)
+      if (s === 'bottom') ctx.strokeRect(pos, 580, sz, 10)
+      ctx.restore()
+      shrinkBlink[s]--
+    }
 
     // Desenha o nome do jogador
     ctx.fillStyle = p.color
@@ -794,7 +990,9 @@ function draw() {
     ctx.arc(p.x, p.y, p.radius, 0, 2 * Math.PI)
     ctx.fill()
     ctx.restore()
-    p.alpha *= 0.95
+    if (p.dx !== undefined) p.x += p.dx
+    if (p.dy !== undefined) p.y += p.dy
+    p.alpha *= 0.93
   }
 
   // Efeito de ponto marcado para cada jogador
@@ -871,6 +1069,18 @@ function draw() {
     ctx.fillStyle = b.color || 'white'
     ctx.fill()
     ctx.restore()
+
+    // No draw das bolas, dentro do balls.forEach
+    if (zigzagActive) {
+      ctx.save()
+      ctx.globalAlpha = 0.6
+      ctx.strokeStyle = `hsl(${Math.floor(performance.now() / 5) % 360}, 100%, 60%)`
+      ctx.lineWidth = 10
+      ctx.beginPath()
+      ctx.arc(b.x, b.y, b.size + 10, 0, 2 * Math.PI)
+      ctx.stroke()
+      ctx.restore()
+    }
   })
 
   confetti.forEach((c) => {
