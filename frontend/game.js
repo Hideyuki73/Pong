@@ -1,6 +1,6 @@
 const canvas = document.getElementById('pong')
 const ctx = canvas.getContext('2d')
-const socket = io(`http://${window.location.hostname}:3001`)
+const socket = io()
 
 let side,
   joined = false,

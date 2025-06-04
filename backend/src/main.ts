@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors(); // Isso permite conexões externas
-  await app.listen(3001, '0.0.0.0'); // Isso permite aceitar conexões de fora
+  const port = process.env.PORT || 3001;
+  await app.listen(port); // Isso permite aceitar conexões de fora
 }
 bootstrap();
