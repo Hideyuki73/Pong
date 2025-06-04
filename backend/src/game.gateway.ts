@@ -1380,7 +1380,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       this.emitState();
-    }, 1000 / 60);
+    }, 1000 / 30);
 
     // Cronômetro de jogo
     this.timerInterval = setInterval(() => {
