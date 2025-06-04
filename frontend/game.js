@@ -681,7 +681,7 @@ document.addEventListener('keydown', (e) => {
 
   if (dir && !moveInterval) {
     moveDirection = dir
-    moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 60)
+    moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 20)
   }
 })
 
