@@ -366,7 +366,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           side: targetSide,
           type: 'shrinkPaddle',
         });
-        this.emitState(); // Atualiza o estado para todos
+        this.emitState();
         setTimeout(() => {
           this.padSize[targetSide] *= 2;
           this.emitState();
@@ -516,7 +516,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           });
         }
       });
-      // Cooldown opcional (exemplo: 8s)
       this.desconcentrarCooldown[s] = true;
       setTimeout(() => (this.desconcentrarCooldown[s] = false), 8000);
       return;
@@ -531,7 +530,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.emit('abilityEffect', {
           side: s,
           type: 'telekinesisOn',
-          effect: 'wave', // ou 'glow', 'shock', etc.
+          effect: 'wave',
           color:
             this.players[
               Object.keys(this.players).find(
@@ -561,14 +560,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           }
         }
 
-        // Desativa após 2 segundos e inicia cooldown
         this.telekinesisTimeouts[s] = setTimeout(() => {
           this.telekinesisActive[s] = false;
           this.telekinesisCooldown[s] = true;
           this.server.emit('abilityEffect', {
             side: s,
             type: 'telekinesisOff',
-            effect: 'wave', // mesmo efeito para desativar
+            effect: 'wave',
             color:
               this.players[
                 Object.keys(this.players).find(
@@ -816,7 +814,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     };
 
     this.interval = setInterval(() => {
-      let jaEmitiuBallHitEsteFrame = false;
       if (this.gameOver) return;
       if (!this.isPaused && this.ballFrozenUntil === null) {
         this.ball.x += this.ball.dx;
@@ -898,7 +895,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
           // Só atrai se estiver a menos de 180px da raquete
           if (dist < 200) {
-            // Força menor (ajuste 0.01 para mais/menos força)
             this.ball.dx += dx * 0.02;
             this.ball.dy += dy * 0.02;
           }
@@ -1047,18 +1043,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         // Pequeno fator aleatório para imprevisibilidade extra
         this.ball.dx += Math.random() - 0.5;
-        this.ball.dy += Math.random() - 0.5; // valor maior = acelera mais rápido (ex: 1.08)
+        this.ball.dy += Math.random() - 0.5;
 
         if (
           !(this.zigzagActive && Object.values(this.zigzagActive).some(Boolean))
         ) {
           this.ball.dx *= this.acceleration;
           this.ball.dy *= this.acceleration;
-        }
-
-        if (!jaEmitiuBallHitEsteFrame) {
-          this.server.emit('ballHit');
-          jaEmitiuBallHitEsteFrame = true;
         }
       });
 
@@ -1090,11 +1081,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               (s === 'top' && b.dy < 0) ||
               (s === 'bottom' && b.dy > 0);
             if (!goingToward) continue;
-
-            if (!jaEmitiuBallHitEsteFrame) {
-              this.server.emit('ballHit');
-              jaEmitiuBallHitEsteFrame = true;
-            }
 
             b.lastHit = s;
             if (s === 'left') b.x = 20 + b.size + 1;
@@ -1390,13 +1376,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.emit('gameOver', {
           winner: winnerName,
           score: this.score,
-        });
-
-        // Só manda defeat para quem ainda está conectado
-        Object.entries(this.players).forEach(([id, player]) => {
-          if (player.side !== winnerSide) {
-            this.server.to(id).emit('defeat');
-          }
         });
       }
 

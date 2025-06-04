@@ -32,18 +32,6 @@ let gameState = {
   padSize: { left: 100, right: 100, top: 100, bottom: 100 },
 }
 
-// Sons
-const hitSound = new Audio('sounds/hit.mp3')
-const pointSound = new Audio('sounds/point.mp3')
-const winSound = new Audio('sounds/win.mp3')
-const timeStopSound = new Audio('sounds/time stop.mp3')
-const grudarSound = new Audio('sounds/grudar.mp3')
-const derrotaSound = new Audio('sounds/derrota.mp3')
-const desconcentrarSound = new Audio('sounds/desconcentrar.mp3')
-const crescerSound = new Audio('sounds/crescer.wav')
-const forcaSound = new Audio('sounds/forca.wav')
-const telecineseSound = new Audio('sounds/telecinese.wav')
-
 const wins = { left: 0, right: 0, top: 0, bottom: 0 }
 let gameOver = false
 
@@ -179,17 +167,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('startModal').style.display = 'none'
   })
-})
-
-socket.on('ballHit', () => {
-  hitSound.pause()
-  hitSound.currentTime = 0
-  hitSound.playbackRate = 2.0
-  hitSound.play()
-  setTimeout(() => {
-    hitSound.pause()
-    hitSound.currentTime = 0
-  }, 2000)
 })
 
 resetButton.addEventListener('click', () => {
@@ -345,8 +322,6 @@ socket.on('state', (state) => {
 })
 
 socket.on('pointEffect', (data) => {
-  pointSound.currentTime = 0
-  pointSound.play()
   if (data && data.background) {
     currentBackground = data.background
 
@@ -389,8 +364,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
         color: color || 'cyan',
         effect: effect || 'wave',
       }
-      telecineseSound.currentTime = 0
-      telecineseSound.play()
       break
 
     case 'zigzagBall':
@@ -401,7 +374,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
 
     case 'invertControls':
       window.invertControlsActive = true
-      // Efeito: flash vermelho rápido
       const invertFlash = document.createElement('div')
       invertFlash.style.position = 'fixed'
       invertFlash.style.left = 0
@@ -425,7 +397,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
     case 'explosiveBall':
       flashWin = true
       flashCount = 0
-      // Efeito: onda de choque
       let waveFrame = 0
       const bx = gameState.ball.x
       const by = gameState.ball.y
@@ -443,7 +414,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
         requestAnimationFrame(drawWave)
       }
       drawWave()
-      // Efeito: partículas de explosão maiores
       for (let i = 0; i < 50; i++) {
         ballParticles.push({
           x: bx,
@@ -489,7 +459,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
           ctx.shadowBlur = 60 * (1 - progress)
           const pos = gameState.positions[s]
           const sz = gameState.padSize[s]
-          // Desenha um "raio" centralizado na raquete
           if (s === 'left') {
             ctx.beginPath()
             ctx.moveTo(25, pos)
@@ -522,8 +491,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
           if (progress >= 1) neonTimers[s] = null
         }
       })()
-      forcaSound.currentTime = 0
-      forcaSound.play()
       break
 
     case 'grow':
@@ -553,8 +520,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
           if (progress >= 1) neonTimers[s] = null
         }
       })()
-      crescerSound.currentTime = 0
-      crescerSound.play()
       break
 
     case 'stickOn':
@@ -570,8 +535,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
         if (s === 'bottom') ctx.strokeRect(gameState.positions[s], 580, gameState.padSize[s], 10)
         ctx.restore()
       }
-      grudarSound.currentTime = 0
-      grudarSound.play()
       break
 
     case 'stickOff':
@@ -585,8 +548,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
       }
       timeStopped = true
       stopperId = s
-      timeStopSound.currentTime = 0
-      timeStopSound.play()
       break
 
     case 'timeStopOff':
@@ -598,7 +559,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
       break
 
     case 'duplicateBall':
-      // Efeito de flash na tela
       const flash = document.createElement('div')
       flash.style.position = 'fixed'
       flash.style.left = 0
@@ -611,7 +571,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
       document.body.appendChild(flash)
       setTimeout(() => document.body.removeChild(flash), 150)
 
-      // Mostra quantas bolas foram criadas (opcional)
       if (typeof multiplier !== 'undefined') {
         const msg = document.createElement('div')
         msg.textContent = `Multiplicou em ${multiplier} bolas!`
@@ -629,8 +588,6 @@ socket.on('abilityEffect', ({ side: s, type, color, effect }) => {
       break
 
     case 'desconcentrar':
-      desconcentrarSound.currentTime = 0
-      desconcentrarSound.play()
       document.body.classList.remove('shake')
       void document.body.offsetWidth
       document.body.classList.add('shake')
@@ -646,12 +603,8 @@ socket.on('gameOver', ({ winner, score }) => {
     winner && winner !== '--' ? `Fim de jogo! Vencedor: ${winner}` : 'Fim de jogo! Nenhum vencedor (jogador saiu)'
   const p = Object.values(gameState.players).find((p) => p.name === winner)
   if (p) {
-    wins[p.side]++ // incrementa o contador
-    updateScoreTable() // redesenha a tabela já com o +1
-    if (side === p.side) {
-      winSound.currentTime = 0
-      winSound.play()
-    }
+    wins[p.side]++
+    updateScoreTable()
   }
   confetti = []
   for (let i = 0; i < 100; i++) {
@@ -664,10 +617,6 @@ socket.on('gameOver', ({ winner, score }) => {
       size: Math.random() * 6 + 4,
     })
   }
-})
-socket.on('defeat', () => {
-  derrotaSound.currentTime = 0
-  derrotaSound.play()
 })
 
 socket.on('resetToJoin', () => {
@@ -725,7 +674,7 @@ document.addEventListener('keydown', (e) => {
     else if (dir === 'right') dir = 'left'
   }
 
-  // Adicione este bloco para garantir que o movimento seja iniciado corretamente
+  // para garantir que o movimento seja iniciado corretamente
   if ((side === 'top' || side === 'bottom') && ['a', 'd', 'arrowleft', 'arrowright'].includes(key)) {
     e.preventDefault()
   }
@@ -846,7 +795,6 @@ function draw() {
     ctx.globalAlpha = 1
   }
 
-  // Efeito especial de telecinese (onda animada)
   Object.entries(telekinesisEffects).forEach(([s, eff]) => {
     if (!eff) return
     const now = performance.now()
@@ -878,7 +826,7 @@ function draw() {
     const pos = gameState.positions[s],
       sz = gameState.padSize[s]
 
-    // Aplica o gradiente do paddle (se definido)
+    // Aplica o gradiente do paddle
     const gradient = applyPaddleGradient(ctx, p.gradient, s, pos, sz)
     if (gradient) {
       ctx.fillStyle = gradient
@@ -887,7 +835,6 @@ function draw() {
     }
 
     if (window.magnetActive && window.magnetActive[s]) {
-      // Efeito: círculos azuis pulsando ao redor da raquete
       ctx.save()
       ctx.globalAlpha = 0.3 + 0.2 * Math.sin(performance.now() / 200)
       ctx.strokeStyle = '#00f6'
@@ -920,9 +867,7 @@ function draw() {
     }
 
     // Desenha a raquete conforme o side
-
     if (window.ghostPaddle && window.ghostPaddle[s]) {
-      // Efeito: contorno piscante
       ctx.save()
       ctx.strokeStyle = 'rgba(200,200,255,' + (0.5 + 0.5 * Math.sin(performance.now() / 100)) + ')'
       ctx.lineWidth = 4
@@ -941,7 +886,6 @@ function draw() {
       )
     }
 
-    // Desenha efeitos adicionais (neon, stick, etc.)
     if (neonTimers[s]) neonTimers[s]()
     if (stickTimers[s]) stickTimers[s]()
 
