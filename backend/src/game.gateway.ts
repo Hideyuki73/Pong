@@ -203,9 +203,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     bottom: false,
   };
 
-  private gameLoopStarted = false;
-  private interval!: NodeJS.Timeout;
-  private timerInterval!: NodeJS.Timeout;
+  gameLoopStarted = false;
+  interval!: NodeJS.Timeout;
+  timerInterval!: NodeJS.Timeout;
 
   handleConnection(client: Socket) {
     const used = Object.values(this.players).map((p) => p.side);
@@ -249,6 +249,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const used = Object.values(this.players).map((p) => p.side);
       const all: Side[] = ['left', 'right', 'top', 'bottom'];
       const available = all.filter((s) => !used.includes(s));
+      if (available.length === 0) {
+        client.emit('full', 'Sala cheia');
+        return;
+      }
       const side = available[0];
       this.players[client.id] = {
         side,
@@ -718,7 +722,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  private releaseStick(s: Side) {
+  releaseStick(s: Side) {
     if (this.stickTimeouts[s]) {
       clearTimeout(this.stickTimeouts[s]!);
       this.stickTimeouts[s] = null;
@@ -781,7 +785,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit('gameReset', { remainingTime: this.remainingTime });
   }
 
-  private resetBall() {
+  resetBall() {
     this.ball = { x: 400, y: 300, dx: 0, dy: 0, size: 10, color: 'white' };
     this.ballFrozenUntil = Date.now() + 1000;
     this.lastHitter = null;
@@ -792,7 +796,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }, 1000);
   }
 
-  private emitState() {
+  emitState() {
     this.server.emit('state', {
       players: this.players,
       positions: this.positions,
@@ -804,7 +808,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  private startGameLoop() {
+  startGameLoop() {
     if (this.gameLoopStarted) return;
     this.gameLoopStarted = true;
 
