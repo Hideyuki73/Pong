@@ -16,7 +16,8 @@ const pointEffects = { left: null, right: null, top: null, bottom: null }
 const ballTrail = []
 const duplicateBallTrails = []
 const ballParticles = []
-const MAX_TRAIL_LENGTH = 30
+// const MAX_TRAIL_LENGTH = 30
+const MAX_TRAIL_LENGTH = 15
 const shrinkBlink = { left: 0, right: 0, top: 0, bottom: 0 }
 let currentBackground = { type: 'color', value: '#0a0a0a' }
 let confetti = []
@@ -270,6 +271,7 @@ socket.on('state', (state) => {
       color: gameState.ball.color || 'white',
     })
     if (ballParticles.length > 50) ballParticles.shift()
+    if (ballParticles.length > 25) ballParticles.shift()
   }
 
   // Atualiza o estado do jogo
@@ -681,6 +683,7 @@ document.addEventListener('keydown', (e) => {
 
   if (dir && !moveInterval) {
     moveDirection = dir
+    // moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 60)
     moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 30)
   }
 })
