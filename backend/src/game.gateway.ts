@@ -339,12 +339,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const s = p.side;
 
     if (p.ability === 'zigzagBall' && !this.zigzagCooldown?.[s]) {
-      this.zigzagActive = this.zigzagActive || {
-        left: false,
-        right: false,
-        top: false,
-        bottom: false,
-      };
       this.zigzagActive[s] = true;
       this.server.emit('abilityEffect', { side: s, type: 'zigzagBall' });
       setTimeout(() => {
@@ -458,12 +452,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     if (p.ability === 'magnet' && !this.magnetCooldown?.[s]) {
-      this.magnetActive = this.magnetActive || {
-        left: false,
-        right: false,
-        top: false,
-        bottom: false,
-      };
       this.magnetActive[s] = true;
       this.server.emit('abilityEffect', { side: s, type: 'magnet' });
       setTimeout(() => {
@@ -606,25 +594,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         setTimeout(() => (this.telekinesisCooldown[s] = false), 5000);
         return;
       }
-
-      // Desativar manualmente (antes do timeout)
-      if (this.telekinesisActive[s]) {
-        if (this.telekinesisTimeouts[s]) {
-          clearTimeout(this.telekinesisTimeouts[s]!);
-          this.telekinesisTimeouts[s] = null;
-        }
-        this.telekinesisActive[s] = false;
-        this.telekinesisCooldown[s] = true;
-        this.server.emit('abilityEffect', { side: s, type: 'telekinesisOff' });
-        setTimeout(() => (this.telekinesisCooldown[s] = false), 5000);
-        return;
-      }
     }
 
     // Force (Neon)
     if (p.ability === 'force' && !this.neonActive[s] && !this.neonCooldown[s]) {
       this.neonActive[s] = true;
-      this.server.emit('abilityEffect', { side: s, type: 'force' }); // Emitir o evento correto
+      this.server.emit('abilityEffect', { side: s, type: 'force' });
       setTimeout(() => {
         this.neonActive[s] = false;
         this.neonCooldown[s] = true;
@@ -677,7 +652,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Multiplicar bola (novo poder)
     if (p.ability === 'duplicateBall' && !this.duplicateBallCooldown?.[s]) {
-      // Sorteia quantas bolas criar (de 1 a 5)
       const multiplier = Math.floor(Math.random() * 5) + 1;
       this.server.emit('abilityEffect', {
         side: s,
@@ -705,7 +679,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-      // Defina o cooldown
       if (!this.duplicateBallCooldown)
         this.duplicateBallCooldown = {
           left: false,
@@ -716,7 +689,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.duplicateBallCooldown[s] = true;
       setTimeout(() => (this.duplicateBallCooldown[s] = false), 8000);
 
-      // Envie o estado completo!
       this.emitState();
       return;
     }
@@ -740,7 +712,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       for (const b of this.duplicateBalls) {
         if (b.isStuck) {
           b.isStuck = false;
-          // Dê uma direção para a bola duplicada ao soltar
           if (s === 'left') {
             b.dx = 4;
             b.dy = (Math.random() < 0.5 ? 1 : -1) * 4;
@@ -1384,8 +1355,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       this.emitState();
-      // }, 1000 / 60);
-    }, 1000 / 30);
+    }, 1000 / 60);
 
     // Cronômetro de jogo
     this.timerInterval = setInterval(() => {

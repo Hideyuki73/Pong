@@ -5,8 +5,7 @@ const socket = io('https://pong-43ok.onrender.com')
 let side,
   joined = false,
   gameReady = false
-let ability,
-  fast = false
+let fast = false
 let timeStopped = false,
   stopperId = null
 const neonTimers = { left: null, right: null, top: null, bottom: null }
@@ -16,8 +15,7 @@ const pointEffects = { left: null, right: null, top: null, bottom: null }
 const ballTrail = []
 const duplicateBallTrails = []
 const ballParticles = []
-// const MAX_TRAIL_LENGTH = 30
-const MAX_TRAIL_LENGTH = 15
+const MAX_TRAIL_LENGTH = 30
 const shrinkBlink = { left: 0, right: 0, top: 0, bottom: 0 }
 let currentBackground = { type: 'color', value: '#0a0a0a' }
 let confetti = []
@@ -140,9 +138,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // Armazenar configuração do background escolhida
-    // Usamos "value": pode ser a URL ou a cor, de acordo com o seletor
     const customBackground = {
-      type: bgSelect.value, // 'color' ou 'image'
+      type: bgSelect.value,
       value: bgSelect.value === 'image' ? bgImage : bgColor,
     }
 
@@ -176,7 +173,7 @@ resetButton.addEventListener('click', () => {
 })
 
 function updateScoreTable() {
-  const sides = ['top', 'right', 'bottom', 'left'] // todos os possíveis lados
+  const sides = ['top', 'right', 'bottom', 'left']
   scoreTableBody.innerHTML = sides
     .map((side) => {
       const player = Object.values(gameState.players).find((p) => p.side === side)
@@ -312,7 +309,7 @@ socket.on('state', (state) => {
   const players = state.players
   const scores = state.score
 
-  // Atualiza placar da esquerda (4 lados sempre mostrando nome e pontos)
+  // Atualiza placar da esquerda
   sides.forEach((side) => {
     const player = Object.values(players).find((p) => p.side === side)
     const name = player ? player.name : '--'
@@ -338,7 +335,7 @@ socket.on('pointEffect', (data) => {
 
       img.onerror = () => {
         console.error('Erro ao carregar a imagem de background:', currentBackground.value)
-        // Se ocorrer erro, define um fallback (ex: cor preta)
+        // Se ocorrer erro, define um fallback
         currentBackground = { type: 'color', value: '#000' }
       }
 
@@ -683,8 +680,7 @@ document.addEventListener('keydown', (e) => {
 
   if (dir && !moveInterval) {
     moveDirection = dir
-    // moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 60)
-    moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 30)
+    moveInterval = setInterval(() => socket.emit('move', { direction: moveDirection, fast }), 1000 / 60)
   }
 })
 
@@ -997,7 +993,7 @@ function draw() {
     ctx.fill()
     ctx.restore()
 
-    // Contorno neon (agora usando a cor da bola)
+    // Contorno neon
     ctx.save()
     ctx.strokeStyle = b.color || 'white'
     ctx.lineWidth = 3 + 2 * glowPulse
@@ -1017,7 +1013,6 @@ function draw() {
     ctx.fill()
     ctx.restore()
 
-    // No draw das bolas, dentro do balls.forEach
     if (zigzagActive) {
       ctx.save()
       ctx.globalAlpha = 0.6
@@ -1039,7 +1034,7 @@ function draw() {
     ctx.restore()
     c.x += c.dx
     c.y += c.dy
-    c.dy += 0.1 // gravidade
+    c.dy += 0.1
   })
   confetti = confetti.filter((c) => c.y < 600)
 }
