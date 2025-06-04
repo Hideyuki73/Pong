@@ -1,6 +1,10 @@
 const canvas = document.getElementById('pong')
 const ctx = canvas.getContext('2d')
-const socket = io('https://pong-43ok.onrender.com')
+const socket = io(
+  window.location.hostname.includes('render')
+    ? 'https://pong-43ok.onrender.com'
+    : `http://${window.location.hostname}:3001`,
+)
 
 let side,
   joined = false,
